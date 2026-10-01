@@ -303,15 +303,16 @@ const level = xp => Math.floor((xp || 0) / 250) + 1;
 /* ---------- contenido precargado (editable desde la pantalla grande) ---------- */
 const DEFAULT_CONTENT = {
   v: 1,
+  rev: 2,
   memo: [
     { type: 'choice', ok: true, q: '¿En qué evento de MUG Bolivia en La Paz se presentó la charla «Microsoft Discovery: ciencia agéntica para no programadores»?', o: ['Global Azure', 'BUILD //localhost La Paz', 'GitHub Copilot Dev Days', 'Demo Talk de Power Platform'], a: 1, note: 'Fue en BUILD //localhost La Paz.' },
     { type: 'choice', ok: true, q: 'En Global Azure se presentó un caso de People Analytics con Power BI y Azure. ¿Qué datos se analizaron?', o: ['Lesiones de jugadores de fútbol', 'Pasajeros del teleférico', 'Ventas de salteñas', 'Notas universitarias'], a: 0, note: 'Un dataset sintético de 650 registros de lesiones de fútbol.' },
     { type: 'choice', ok: true, q: 'La Demo Talk de Power Platform (19/09/2026) mostró cómo usar Power Platform para…', o: ['Registrar capacitaciones y medir competencias', 'Vender entradas a eventos', 'Controlar las luces del auditorio', 'Editar videos de la comunidad'], a: 0, note: 'Registrar capacitaciones, medir competencias y automatizar el seguimiento.' },
     { type: 'choice', ok: true, q: 'Completa uno de los valores de MUG Bolivia: «___ primero, tecnología después»', o: ['Código', 'Comunidad', 'Cloud', 'Café'], a: 1, note: 'Comunidad primero, tecnología después.' },
     { type: 'choice', ok: true, q: 'Otro valor de MUG Bolivia: «Puertas abiertas, desde el primer…»', o: ['commit', 'deploy', 'Hello World', 'sticker'], a: 2, note: 'Aquí se entra desde el primer Hello World.' },
-    { type: 'order', ok: false, q: 'Ordena estos eventos de MUG Bolivia en La Paz, del más antiguo al más reciente', items: ['Global Azure', 'BUILD //localhost La Paz', 'Demo Talk de Power Platform', 'GitHub Copilot Dev Days'], note: '' },
-    { type: 'choice', ok: false, q: '¿Dónde se realizó el GitHub Copilot Dev Days La Paz?', o: ['(lugar real)', '(otra opción)', '(otra opción)', '(otra opción)'], a: 0, note: '' },
-    { type: 'choice', ok: false, q: '¿Cuántas personas asistieron al Dev Days La Paz?', o: ['(cifra real)', '(otra cifra)', '(otra cifra)', '(otra cifra)'], a: 0, note: '' },
+    { type: 'choice', ok: true, q: 'En Microsoft Student Ambassadors hay dos caminos para avanzar en el programa. ¿Cuáles son?', o: ['Junior y Senior', 'Influencer y Skiller', 'Gamer y Coder', 'Alpha y Omega'], a: 1, note: 'Influencer comparte contenido técnico; Skiller organiza sesiones de aprendizaje con contenido de Microsoft Learn.' },
+    { type: 'choice', ok: true, q: 'En Microsoft Learn, ¿cómo se llama el conjunto de módulos ordenados para aprender una habilidad paso a paso?', o: ['Temporada', 'Playlist', 'Ruta de aprendizaje', 'Nivel secreto'], a: 2, note: 'Una ruta de aprendizaje junta varios módulos en orden; cada módulo suele durar menos de una hora.' },
+    { type: 'choice', ok: true, q: 'Nuestra mascota, el Tilcayo, es un felino de los Yungas de La Paz. ¿Cuánto pesa más o menos?', o: ['1,4 kg', '5 kg', '12 kg', '30 kg'], a: 0, note: 'Mide unos 46 cm y pesa cerca de 1,4 kg: menos que un gato doméstico. Sin bosque yungueño no hay tilcayo.' },
   ],
   bingo: [
     { t: 'Usó Copilot esta semana', tool: 'Copilot' },
@@ -337,7 +338,7 @@ const DEFAULT_CONTENT = {
     { t: 'Organiza pendientes en Planner o To Do', tool: 'Planner / To Do' },
     { t: 'Trabaja en equipo con Loop o SharePoint', tool: 'Loop / SharePoint' },
     { t: 'Usa Outlook todos los días', tool: 'Outlook' },
-    { t: 'Es Microsoft Learn Student Ambassador', tool: 'Student Ambassadors' },
+    { t: 'Es Microsoft Student Ambassador', tool: 'Student Ambassadors' },
   ],
   seeds: [
     'Muchos commits, un solo main',
@@ -348,7 +349,18 @@ const DEFAULT_CONTENT = {
     'Del primer Hello World al último deploy',
   ],
 };
-const loadContent = () => { const c = store.get('rt-content'); return c && c.v === 1 && Array.isArray(c.memo) && Array.isArray(c.bingo) ? c : JSON.parse(JSON.stringify(DEFAULT_CONTENT)); };
+const OLD_PENDING = ['Ordena estos eventos de MUG Bolivia en La Paz, del más antiguo al más reciente', '¿Dónde se realizó el GitHub Copilot Dev Days La Paz?', '¿Cuántas personas asistieron al Dev Days La Paz?'];
+const loadContent = () => {
+  const c = store.get('rt-content');
+  if (!(c && c.v === 1 && Array.isArray(c.memo) && Array.isArray(c.bingo))) return JSON.parse(JSON.stringify(DEFAULT_CONTENT));
+  if ((c.rev || 1) < 2) { // actualización: cambia las 3 preguntas por confirmar por las nuevas
+    c.memo = c.memo.filter(q => !(OLD_PENDING.includes(q.q) && !q.ok));
+    DEFAULT_CONTENT.memo.slice(-3).forEach(q => { if (!c.memo.some(x => x.q === q.q)) c.memo.push(JSON.parse(JSON.stringify(q))); });
+    c.bingo.forEach(b => { if (b.t === 'Es Microsoft Learn Student Ambassador') b.t = 'Es Microsoft Student Ambassador'; });
+    c.rev = 2; store.set('rt-content', c);
+  }
+  return c;
+};
 let CONTENT = loadContent();
 const saveContent = () => store.set('rt-content', CONTENT);
 
@@ -831,11 +843,11 @@ function buildMemo() {
     const n = pick.n, set = new Set([n, n + 1, n + 2, Math.max(1, n - 1), n + 3]); const opts = shuffle([...set].filter(x => x !== n).slice(0, 3).concat(n));
     auto.push({ type: 'choice', q: `¿Cuántas personas confirmaron en el bingo que usan ${pick.tool}?`, o: opts.map(String), a: opts.indexOf(n), note: `${n} personas del equipo usan ${pick.tool}.`, auto: true });
   }
-  const out = list.slice(0, 6);
+  const out = list.slice(0, 8);
   if (auto[0]) out.splice(Math.min(2, out.length), 0, auto[0]);
   if (auto[1]) out.push(auto[1]);
   out.forEach(q => { if (q.type === 'order') q.shuffled = shuffle(q.items.map((t, id) => ({ id, t }))); });
-  return out.slice(0, 8);
+  return out.slice(0, 10);
 }
 function startMemo() {
   H.memo = { list: buildMemo(), i: -1 };
@@ -917,6 +929,60 @@ function setWinner(k) {
   SFX.win(); confetti(); say(`¡Nuestro lema es «${o.text}»!`, 6000, 'happy');
   changed();
 }
+
+/* ----- jugadores de prueba (bots) para ensayar sin gente ----- */
+const BOTS = [['Illimani', '🏔️'], ['Huayna', '🦙'], ['Mururata', '🦉'], ['Sajama', '🌵'], ['Titicaca', '🐸'], ['Tunari', '🦊'], ['Yungas', '🐝']];
+const BOT_WORDS = ['comunidad', 'energía', 'garra', 'chispa', 'equipo', 'paciencia', 'creatividad'];
+ACT['bots'] = () => {
+  const have = H.order.filter(id => P_(id).bot).length;
+  BOTS.slice(have).forEach(([nm, av], i) => {
+    const id = 'bot' + rand(10, 'abcdefghijklmnopqrstuvwxyz0123456789');
+    H.players[id] = { id, nick: 'Bot ' + nm, full: 'Jugador de prueba ' + (have + i + 1), email: '', role: 'Jugador de prueba', avatar: av, word: BOT_WORDS[(have + i) % BOT_WORDS.length], team: H.nTeams ? smallestTeam() : -1, xp: 0, joinedAt: Date.now(), seen: Date.now(), stats: newStats(), bot: true };
+    H.order.push(id);
+    if (H.bingo && H.phase === 'bingo') dealCard(id);
+  });
+  SFX.join(); say('¡Llegaron jugadores de prueba! Juegan solos para que puedas ensayar.', 4000, 'happy'); changed();
+};
+ACT['unbots'] = () => { H.order.filter(id => P_(id).bot).forEach(id => delete H.players[id]); H.order = H.order.filter(id => H.players[id]); changed(); };
+function botTick() {
+  if (!H) return;
+  const bots = H.order.map(P_).filter(p => p && p.bot); if (!bots.length) return;
+  const now = Date.now(), R = Math.random, pick = a => a[Math.floor(R() * a.length)];
+  bots.forEach(b => { b.seen = now; });
+  if (H.phase === 'bingo' && H.bingo) {
+    const b = H.bingo;
+    b.reqs.filter(r => P_(r.to) && P_(r.to).bot && now - r.at > 1800 + (r.id.charCodeAt(1) % 6) * 500).forEach(r => onHostMsg({ t: 'sign_ans', pid: r.to, req: r.id, ok: R() < .9 }));
+    bots.forEach(bot => {
+      if (R() > .07 || !b.stamps[bot.id]) return;
+      const st = b.stamps[bot.id], free = [...Array(9).keys()].filter(ci => st[ci] === undefined && !b.reqs.some(r => r.from === bot.id && r.ci === ci));
+      const used = id => Object.values(st).filter(x => x === id).length + b.reqs.filter(r => r.from === bot.id && r.to === id).length;
+      const targets = H.order.filter(id => id !== bot.id && used(id) < 2);
+      if (free.length && targets.length) onHostMsg({ t: 'sign_req', pid: bot.id, ci: pick(free), to: pick(targets) });
+    });
+  }
+  if (H.phase === 'memo_q') {
+    const q = H.memo.list[H.memo.i], A = H.ans[H.qk] || {};
+    bots.forEach(bot => {
+      if (A[bot.id] || R() > .1) return;
+      const v = q.type === 'order' ? (R() < .45 ? q.items.map((_, i) => i) : shuffle(q.items.map((_, i) => i))) : (R() < .6 ? q.a : Math.floor(R() * q.o.length));
+      onHostMsg({ t: 'ans', pid: bot.id, qk: H.qk, v });
+    });
+  }
+  if (H.phase === 'boss' && H.boss) bots.forEach(bot => onHostMsg({ t: 'tap', pid: bot.id, n: (H.boss.taps[bot.id] || 0) + 2 + Math.floor(R() * 5) }));
+  if (H.phase === 'lema_prop') {
+    for (let t = 0; t < H.nTeams; t++) {
+      if (H.props[t] || R() > .06) continue;
+      const bot = bots.find(p => p.team === t); if (!bot) continue;
+      const taken = Object.values(H.props).map(p => p.text), seeds = (CONTENT.seeds || []).filter(s => s && !taken.includes(s));
+      if (seeds.length) onHostMsg({ t: 'prop', pid: bot.id, text: pick(seeds) });
+    }
+  }
+  if (H.phase === 'lema_vote') bots.forEach(bot => {
+    if (H.votes[bot.id] || R() > .1) return;
+    const ok = H.opts.filter(o => !(o.team >= 0 && o.team === bot.team)); if (ok.length) onHostMsg({ t: 'vote', pid: bot.id, k: pick(ok).k });
+  });
+}
+setInterval(botTick, 700);
 
 /* ----- controles ----- */
 function startTeams() {
@@ -1067,6 +1133,7 @@ function renderHost() {
   if (!fresh) $('#stage').scrollTop = prevScroll;
   $('#ctrl').innerHTML = `<span class="hint">${esc(hostHint())}</span><div class="right">
     ${H.offline && H.phase === 'memo_rev' ? TEAMS.map((t, i) => `<button class="btn small" data-act="tb" data-t="${i}" style="background:${t.hex}">+100 ${t.name.replace('Línea ', '').toUpperCase()}</button>`).join('') : ''}
+    ${H.phase === 'lobby' ? (H.order.some(id => P_(id).bot) ? '<button class="btn ghost" data-act="unbots">Quitar bots</button>' : '<button class="btn ghost" data-act="bots" title="Agrega 7 jugadores simulados para ensayar sin gente">+7 bots de prueba</button>') : ''}
     ${H.phase === 'lobby' ? '<button class="btn ghost" data-act="offline" title="Si el internet falla: Memoria MUG en pantalla y respuestas con post-its de colores">Plan B sin internet</button>' : ''}
     ${timed ? '<button class="btn ghost" data-act="plus">+30 s</button>' : ''}
     ${pr ? `<button class="btn" data-act="primary" ${pr.off ? 'disabled' : ''}>${esc(pr.label)} <kbd>ESPACIO</kbd></button>` : ''}</div>`;
@@ -1089,7 +1156,7 @@ function patchHost() {
 }
 function hostHint() {
   const ph = H.phase;
-  if (ph === 'lobby') return H.order.length < 2 ? 'Esperando voluntarios… se necesitan al menos 2.' : 'Cuando estén todos, arma las líneas.';
+  if (ph === 'lobby') return H.order.some(id => P_(id).bot) ? 'Hay bots de prueba: quítalos o usa Nueva sala antes del evento real.' : H.order.length < 2 ? 'Esperando voluntarios… se necesitan al menos 2. Para ensayar solo/a, agrega bots.' : 'Cuando estén todos, arma las líneas.';
   if (ph === 'teams') return 'Pide que cada línea se junte físicamente antes de seguir.';
   if (ph === 'bingo') return `${H.bingo.reqs.length} confirmaciones pendientes · el bingo termina solo al acabar el tiempo`;
   if (ph === 'memo_q') return `${Object.keys(H.ans[H.qk] || {}).length} de ${eligible().length} respondieron · se revela solo al terminar el tiempo`;
